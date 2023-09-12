@@ -1,0 +1,241 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Library
+
+```{r}
+library(dplyr)
+library(TTR)
+library(forecast)
+library(lmtest) 
+library(orcutt) 
+library(HoRM) 
+library(readxl)
+library(corrplot)
+```
+
+#Input Data
+```{r}
+datawine <- read_excel("~/Rafee/IPB/Sem 5/MPDW/datawinempdw.xlsx")
+View(datawine)
+str(datawine)
+# Peubah yang digunakan
+price <- datawine$price
+prod <- datawine$prod
+ha <- datawine$ha
+yield <- datawine$yield
+```
+
+# Mengubah data menjadi data deret waktu
+```{r}
+price.ts <- ts(price)
+prod.ts <- ts(prod)
+ha.ts <- ts(ha)
+yield.ts <- ts(yield)
+```
+
+# Eksplorasi data
+```{r}
+# scatter plot Harvested Acres vs Production
+plot(ha,prod, pch = 20, col = "red",
+     main = "Scatter Plot Price vs Production",
+     xlab = "Production",
+     ylab = "Price")
+
+# scatter plot Harvested vs Yield
+plot(ha,yield, pch = 20, col = "red",
+     main = "Scatter Plot Price vs Harvested Acres",
+     xlab = "Harvested Acres",
+     ylab = "Price")
+
+# Cek Korelasi
+matriks <- cor(datawine)
+corrplot.mixed(matriks, upper = 'circle', haer = 'number', order = "original",
+               tl.col="green", tl.pos = "lt",diag = 'l',
+               number.digits=2, number.cex=1)
+
+# Plot time series
+## price
+ts.plot(ha.ts, xlab="Time Period ", ylab="Harvested Acres", 
+        main = "Time Series Plot")
+points(ha.ts)
+
+## prod
+ts.plot(prod.ts, xlab="Time Period ", ylab="Production", 
+        main = "Time Series Plot")
+points(prod.ts)
+
+## ha
+ts.plot(yield.ts, xlab="Time Period ", ylab="Yield", 
+        main = "Time Series Plot")
+points(yield.ts)
+```
+# Pembuatan regresi time series
+## Pembuatan model awal
+
+```{r}
+model1 <- lm(ha~prod+yield)
+summary(model1)
+```
+# Plot Asumsi
+```{r}
+#sisaan dan fitted value
+sisaan1<- residuals(model1)
+fitValue1<- predict(model1)
+
+#Diagnostik dengan eksploratif
+par(mfrow = c(2,2))
+qqnorm(sisaan1)
+qqline(sisaan1, col = "steelblue", lwd = 2)
+plot(fitValue1, sisaan1, col = "steelblue", pch = 20, xlab = "Sisaan", ylab = "Fitted Values", main = "Sisaan vs Fitted Values")
+abline(a = 0, b = 0, lwd = 2)
+hist(sisaan1, col = "steelblue")
+plot(seq(1,145,1), sisaan1, col = "steelblue", pch = 20, xlab = "Sisaan", ylab = "Order", main = "Sisaan vs Order")
+lines(seq(1,145,1), sisaan1, col = "black")
+abline(a = 0, b = 0, lwd = 2)
+```
+# Uji formal Normalitas
+```{r}
+#H0: sisaan mengikuti sebaran normal
+#H1: sisaan tidak mengikuti sebaran normal
+shapiro.test(sisaan1)
+ks.test(sisaan1, "pnorm", mean=mean(sisaan1), sd=sd(sisaan1))
+```
+# Transformasi karna data tidak normal (1/x dan 1/y)
+```{r}
+hatrans <- 1/(ha)
+prodtrans <- 1/(prod)
+yieldtrans <- 1/(yield)
+# Model transformasi
+modeltrans <- lm(hatrans~prodtrans+trans)
+summary(modeltrans)
+```
+# Cek Ulang Normalitas
+```{r}
+#sisaan dan fitted value
+sisaan1<- residuals(modeltrans)
+fitValue1<- predict(modeltrans)
+
+#Diagnostik dengan eksploratif
+par(mfrow = c(2,2))
+qqnorm(sisaan1)
+qqline(sisaan1, col = "steelblue", lwd = 2)
+plot(fitValue1, sisaan1, col = "steelblue", pch = 20, xlab = "Sisaan", ylab = "Fitted Values", main = "Sisaan vs Fitted Values")
+abline(a = 0, b = 0, lwd = 2)
+hist(sisaan1, col = "steelblue")
+plot(seq(1,145,1), sisaan1, col = "steelblue", pch = 20, xlab = "Sisaan", ylab = "Order", main = "Sisaan vs Order")
+lines(seq(1,145,1), sisaan1, col = "red")
+abline(a = 0, b = 0, lwd = 2)
+
+# Uji Formal normalitas
+#H0: sisaan mengikuti sebaran normal
+#H1: sisaan tidak mengikuti sebaran normal
+ks.test(sisaan1, "pnorm", mean=mean(sisaan1), sd=sd(sisaan1))
+```
+# ACF dan PACF identifikasi autokorelasi
+```{r}
+par(mfrow = c(1,2))
+acf(sisaan1)
+pacf(sisaan1)
+```
+# Uji formal autokorelasi
+```{r}
+#H0: tidak ada autokorelasi
+#H1: ada autokorelasi
+dwtest(model1)
+```
+# Penanganan Autokorelasi
+## Metode Cochrane-Orcutt
+```{r}
+#Penanganan Autokorelasi Cochrane-Orcutt
+modelCO1<-cochrane.orcutt(modeltrans)
+modelCO1
+modelCO1$coefficients
+```
+```{r}
+#Rho optimum
+rho1<- modelCO1$rho
+rho1
+```
+# Transformasi Manual
+```{r}
+ha<- ha[-1]-ha[-145]*rho1
+prod<- prod[-1]-prod[-145]*rho1
+yield<- yield[-1]-yield[-145]*rho1
+modelCOmanual1<- lm(ha~prod+yield)
+summary(modelCOmanual1)
+```
+```{r}
+#Mencari Penduga Koefisien Regresi setelah Transformasi ke Persamaan Awal
+b0bintang1 <- modelCOmanual1$coefficients[1]
+b0.1<- b0bintang1/(1-rho1)
+b1.1 <- modelCOmanual1$coefficients[2]
+b2.1 <- modelCOmanual1$coefficients[3]
+b0.1
+b1.1
+b2.1
+```
+# Metode Hildreth-Lu
+```{r}
+hildreth.lu.func<- function(r, model){
+  x1 <- model.matrix(model)[,c(-1,-3)]
+  x2 <- model.matrix(model)[,c(-1,-2)]
+  y <- model.response(model.frame(model))
+  n <- length(y)
+  t <- 2:n
+  y <- y[t]-r*y[t-1]
+  x1 <- x1[t]-r*x1[t-1]
+  x2 <- x2[t]-r*x2[t-1]
+  
+  return(lm(y~x1+x2))
+}
+
+#Pencariab rho yang meminimumkan SSE
+r1 <- c(seq(0.1,0.9, by= 0.1))
+tab1 <- data.frame("rho" = r1, "SSE" = sapply(r1, function(i){deviance(hildreth.lu.func(i, modeltrans))}))
+tab1
+```
+```{r}
+rOpt1<- seq(0.1,0.4, by= 0.001)
+tabOpt1 <- data.frame("rho" = rOpt1, "SSE" = sapply(rOpt1, function(i){deviance(hildreth.lu.func(i, modeltrans))}))
+head(tabOpt1[order(tabOpt1$SSE),])
+
+#Grafik SSE optimum
+par(mfrow = c(1,1))
+plot(tab1$SSE ~ tab1$rho , type = "l", xlab = "Rho", ylab = "SSE")
+abline(v = tabOpt1[tabOpt1$SSE==min(tabOpt1$SSE),"rho"], lty = 2, col="red",lwd=2)
+text(x=0.174, y=8.084217e-13		, labels = "rho=0.174", cex = 0.8)
+```
+```{r}
+#Model terbaik
+modelHL1 <- hildreth.lu.func(0.174, modeltrans)
+summary(modelHL1)
+
+#Transformasi Balik
+cat("y = ", coef(modelHL1)[1]/(1-0.174), "+", coef(modelHL1)[2],"x1","+", coef(modelHL1)[3],"x2", sep = "")
+```
+```{r}
+#Deteksi autokorelasi
+dwtest(modelHL1)
+```
+# Perbandingan keakuratan
+```{r}
+sseModelawal1 <- anova(modeltrans)$`Sum Sq`[c(-1,-2)]
+sseModelCO1 <- anova(modelCOmanual1)$`Sum Sq`[c(-1,-2)]
+sseModelHL1 <- anova(modelHL1)$`Sum Sq`[c(-1,-2)]
+mseModelawal1 <- sseModelawal1/length(hatrans)
+mseModelCO1 <- sseModelCO1/length(hatrans)
+mseModelHL1 <- sseModelHL1/length(hatrans)
+akurasi1 <- matrix(c(sseModelawal1,sseModelCO1,sseModelHL1,
+                    mseModelawal1,mseModelCO1,mseModelHL1),nrow=2,ncol=3,byrow = T)
+colnames(akurasi1) <- c("Model Awal", "Model Cochrane-Orcutt", "Model Hildreth-Lu")
+row.names(akurasi1) <- c("SSE","MSE")
+akurasi1
+```
+
+
+
+
+
