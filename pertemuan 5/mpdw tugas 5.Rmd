@@ -1,0 +1,118 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(ggplot2)
+library(tsibble)
+library(tseries)
+library(MASS)
+```
+
+# Input Data 
+```{r}
+library(readxl)
+dtbekasi <- read_excel("~/Rafee/IPB/Sem 5/MPDW/databekasi.xlsx")
+View(dtbekasi)
+```
+
+# Ubah data menjadi Time Series dan Membuat Plot
+```{r}
+dtbekasi.ts <- ts(dtbekasi$`suhu`)
+ts.plot(dtbekasi.ts, xlab="Time Period ", ylab="Suhu Bekasi", 
+        main = "Time Series Plot")
+points(dtbekasi.ts)
+```
+# Plot ACF
+```{r}
+acf(dtbekasi.ts)
+```
+
+# Uji ADF
+```{r}
+tseries::adf.test(dtbekasi.ts)
+```
+
+# Plot Box-Cox
+```{r}
+index <- seq(1:144)
+bc = boxcox(dtbekasi.ts~index, lambda = seq(0,4,by=0.01))
+#Nilai Rounded Lambda
+lambda <- bc$x[which.max(bc$y)]
+lambda
+#SK
+bc$x[bc$y > max(bc$y) - 1/2 * qchisq(.95,1)]
+```
+# Partisi Data
+## Bagian 1
+
+```{r}
+dtbekasi.ts1<- dtbekasi$suhu[1:50] |> ts()
+mean(dtbekasi.ts1)
+var(dtbekasi.ts1)
+```
+### Membuat plot time series
+```{r}
+ts.plot(dtbekasi.ts1, xlab="Time Period ", ylab="Suhu Bekasi", 
+        main = "Time Series Plot")
+points(dtbekasi.ts1)
+```
+### Plot ACF
+```{r}
+acf(dtbekasi.ts1)
+```
+### Uji ADF
+```{r}
+tseries::adf.test(dtbekasi.ts1)
+```
+
+### Plot Box-Cox
+```{r}
+index.1 <- seq(1:50)
+bc.1 = boxcox(dtbekasi.ts1~index.1, lambda = seq(0,4,by=0.01))
+#Nilai Rounded Lambda
+lambda.1 <- bc.1$x[which.max(bc.1$y)]
+lambda.1
+#SK
+bc.1$x[bc.1$y > max(bc.1$y) - 1/2 * qchisq(.95,1)]
+```
+
+## Bagian 2
+
+```{r}
+dtbekasi.ts2 <- dtbekasi$`suhu`[50:144] |> ts()
+mean(dtbekasi.ts2)
+var(dtbekasi.ts2)
+```
+### Membuat plot time series
+```{r}
+ts.plot(dtbekasi.ts2, xlab="Time Period ", ylab="Suhu Bekasi", 
+        main = "Time Series Plot")
+points(dtbekasi.ts2)
+```
+### Plot ACF
+```{r}
+acf(dtbekasi.ts2)
+```
+### Uji ADF
+```{r}
+tseries::adf.test(dtbekasi.ts2)
+```
+### Plot Box-Cox
+```{r}
+index.2 <- seq(50:144)
+bc.2 = boxcox(dtbekasi.ts2~index.2, lambda = seq(0,4,by=0.01))
+#Nilai Rounded Lambda
+lambda.2 <- bc.2$x[which.max(bc.2$y)]
+lambda.2
+#SK
+bc.2$x[bc.2$y > max(bc.2$y) - 1/2 * qchisq(.95,1)]
+```
+
+
+
+
+
